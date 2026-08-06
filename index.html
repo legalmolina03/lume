@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en" class="dark" data-accent="purple">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#0b0b10" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Lume" />
+    <meta
+      name="description"
+      content="Habits, tasks and focus in one calm dashboard."
+    />
+    <title>Lume</title>
+    <script>
+      // Applies the saved theme before first paint so the app never flashes
+      // light before React mounts. SettingsContext takes over from here.
+      try {
+        const saved = JSON.parse(localStorage.getItem('lume.appearance') || '{}')
+        const root = document.documentElement
+        root.classList.toggle('light', saved.theme === 'light')
+        root.classList.toggle('dark', saved.theme !== 'light')
+        if (saved.accent) root.dataset.accent = saved.accent
+      } catch {}
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

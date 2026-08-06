@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "lume-dev",
+      "runtimeExecutable": "dev.cmd",
+      "runtimeArgs": [],
+      "port": 5173
+    },
+    {
+      "name": "lume-preview",
+      "runtimeExecutable": "preview.cmd",
+      "runtimeArgs": [],
+      "port": 4173
+    }
+  ]
+}
