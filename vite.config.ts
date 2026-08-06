@@ -19,7 +19,8 @@ export default defineConfig({
       manifest: {
         name: 'Lume',
         short_name: 'Lume',
-        description: 'Habits, tasks, and focus in one calm dashboard.',
+        description:
+          'Light your day. Build your way. Habits, tasks and focus in one calm dashboard.',
         start_url: '/',
         scope: '/',
         display: 'standalone',

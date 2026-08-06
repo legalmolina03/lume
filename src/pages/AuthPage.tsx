@@ -42,9 +42,7 @@ export function AuthPage() {
       <div className="w-full max-w-sm">
         <div className="mb-8 flex flex-col items-center gap-3 text-center">
           <LumeWordmark size={30} />
-          <p className="text-sm text-muted">
-            Habits, tasks and focus in one calm place.
-          </p>
+          <p className="text-sm text-muted">Light your day. Build your way.</p>
         </div>
 
         <form
