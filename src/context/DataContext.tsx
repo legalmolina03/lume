@@ -107,6 +107,12 @@ export const MAX_PINNED_TASKS = 5
 export function DataProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth()
 
+  // Keyed on the id, not the user object. Supabase hands back a fresh session
+  // (and so a fresh `user`) on every token refresh and visibility change, and
+  // depending on the object identity re-ran this whole nine-query load every
+  // few seconds while the app sat idle.
+  const userId = user?.id ?? null
+
   const [lifeAreas, setLifeAreas] = useState<LifeArea[]>([])
   const [projects, setProjects] = useState<Project[]>([])
   const [habits, setHabits] = useState<Habit[]>([])
@@ -118,7 +124,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null)
 
   const refresh = useCallback(async () => {
-    if (!user) {
+    if (!userId) {
       setLifeAreas([])
       setProjects([])
       setHabits([])
@@ -186,14 +192,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setEvents(eventsRes.data ?? [])
     setFocusSessions(focusRes.data ?? [])
     setLoading(false)
-  }, [user])
+  }, [userId])
 
   useEffect(() => {
     void refresh()
   }, [refresh])
 
   const value = useMemo<DataValue>(() => {
-    const uid = user?.id ?? ''
+    const uid = userId ?? ''
 
     const upsertLocal = <T extends { id: string }>(
       setter: React.Dispatch<React.SetStateAction<T[]>>,
@@ -554,7 +560,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       taskById: (id) => tasks.find((t) => t.id === id) ?? null,
     }
   }, [
-    user,
+    userId,
     loading,
     error,
     refresh,

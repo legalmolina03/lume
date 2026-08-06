@@ -19,11 +19,15 @@ import { LifeAreaChip } from '../components/Signals'
 
 type RangePreset = '7d' | '30d' | 'month' | 'custom'
 
-const KIND_META: Record<ActivityKind, { label: string; Icon: LucideIcon }> = {
-  habit: { label: 'Habit', Icon: Repeat },
-  task: { label: 'Task', Icon: CheckSquare },
-  focus: { label: 'Focus', Icon: Timer },
-  event: { label: 'Event', Icon: CalendarDays },
+const KIND_META: Record<
+  ActivityKind,
+  { label: string; plural: string; Icon: LucideIcon }
+> = {
+  habit: { label: 'Habit', plural: 'habits', Icon: Repeat },
+  task: { label: 'Task', plural: 'tasks', Icon: CheckSquare },
+  // "focus" doesn't take an -s, hence an explicit plural rather than label + 's'.
+  focus: { label: 'Focus', plural: 'focus sessions', Icon: Timer },
+  event: { label: 'Event', plural: 'events', Icon: CalendarDays },
 }
 
 function rangeFor(preset: RangePreset, from: string, to: string) {
@@ -193,12 +197,12 @@ export function ActivityPage() {
 
         <div className="mt-3 flex flex-wrap gap-4 border-t border-border pt-3 text-[11px] text-muted">
           {(Object.keys(KIND_META) as ActivityKind[]).map((kind) => {
-            const { label, Icon } = KIND_META[kind]
+            const { label, plural, Icon } = KIND_META[kind]
             return (
               <span key={kind} className="inline-flex items-center gap-1.5">
                 <Icon size={12} />
-                {counts[kind]} {label.toLowerCase()}
-                {counts[kind] === 1 ? '' : 's'}
+                {counts[kind]}{' '}
+                {counts[kind] === 1 ? label.toLowerCase() : plural}
               </span>
             )
           })}

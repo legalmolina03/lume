@@ -69,6 +69,9 @@ function readLocalAppearance(): Appearance {
 
 export function SettingsProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth()
+  // See DataContext: the user object is replaced on every token refresh, so
+  // everything downstream keys off the stable id instead.
+  const userId = user?.id ?? null
   const [appearance, setAppearance] = useState<Appearance>(readLocalAppearance)
   const [settings, setSettings] = useState<UserSettings | null>(null)
   const [loading, setLoading] = useState(true)
@@ -91,7 +94,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   }, [appearance])
 
   useEffect(() => {
-    if (!user) {
+    if (!userId) {
       setSettings(null)
       setLoading(false)
       return
@@ -103,7 +106,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     supabase
       .from('user_settings')
       .select('*')
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .maybeSingle()
       .then(({ data }) => {
         if (!active) return
@@ -117,15 +120,15 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     return () => {
       active = false
     }
-  }, [user])
+  }, [userId])
 
   const persist = useCallback(
     async (patch: SettingsPatch) => {
-      if (!user) return
+      if (!userId) return
       const { data, error } = await supabase
         .from('user_settings')
         .upsert(
-          { user_id: user.id, ...patch, updated_at: new Date().toISOString() },
+          { user_id: userId, ...patch, updated_at: new Date().toISOString() },
           { onConflict: 'user_id' },
         )
         .select()
@@ -133,7 +136,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       if (error) throw error
       setSettings(data)
     },
-    [user],
+    [userId],
   )
 
   const value = useMemo<SettingsValue>(
