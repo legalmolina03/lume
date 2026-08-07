@@ -242,7 +242,10 @@ create index events_user_recurring_idx on public.events (user_id) where recurrin
 
 create table public.user_settings (
   user_id                 uuid primary key references auth.users (id) on delete cascade,
-  habit_reminder_time     time,
+  -- Defaulted rather than nullable: the settings screen shows 20:00, and a
+  -- NULL here would make it claim a reminder was set when the dispatcher was
+  -- actually skipping the user.
+  habit_reminder_time     time not null default '20:00',
   task_reminder_enabled   boolean not null default true,
   default_pomodoro_minutes integer not null default 25 check (default_pomodoro_minutes between 1 and 240),
   default_break_minutes    integer not null default 5  check (default_break_minutes between 1 and 120),
