@@ -99,6 +99,37 @@ function minutesOf(time: string): number {
   return Number(hours) * 60 + Number(mins)
 }
 
+/** `yyyy-MM-dd` shifted by whole days, without touching timezones. */
+function shiftDate(date: string, days: number): string {
+  const d = new Date(`${date}T12:00:00Z`)
+  d.setUTCDate(d.getUTCDate() + days)
+  return d.toISOString().slice(0, 10)
+}
+
+/**
+ * When a task's reminder should fire, in the user's local wall clock.
+ *
+ * A task with no due time is "sometime that day", so there is no instant to
+ * count backwards from — those anchor to 9am rather than midnight, which would
+ * put a "30 minutes before" reminder at 11:30pm the night before.
+ */
+const DATELESS_ANCHOR_MINUTES = 9 * 60
+
+function triggerFor(
+  dueDate: string,
+  dueTime: string | null,
+  leadMinutes: number,
+): { date: string; minutes: number } {
+  const anchor = dueTime ? minutesOf(dueTime) : DATELESS_ANCHOR_MINUTES
+  let minutes = anchor - leadMinutes
+  let date = dueDate
+  while (minutes < 0) {
+    minutes += 1440
+    date = shiftDate(date, -1)
+  }
+  return { date, minutes }
+}
+
 async function pushToUser(userId: string, payload: Payload): Promise<number> {
   const { data: subscriptions } = await admin
     .from('push_subscriptions')
@@ -179,6 +210,62 @@ Deno.serve(async (req) => {
       minutes >= reminderAt &&
       minutes < reminderAt + BUCKET_MINUTES
 
+    /* ------------------------------------------- per-task lead reminders -- */
+    //
+    // These are independent of the daily digest window: a task set to remind
+    // 30 minutes before 2pm has nothing to do with the evening nudge, so this
+    // pass runs on every invocation.
+
+    let taskRemindersDue = 0
+
+    if (settings.task_reminder_enabled) {
+      const { data: pending } = await admin
+        .from('tasks')
+        .select('id, title, due_date, due_time, remind_minutes_before')
+        .eq('user_id', settings.user_id)
+        .eq('status', 'open')
+        .not('remind_minutes_before', 'is', null)
+        .is('reminded_at', null)
+        .not('due_date', 'is', null)
+
+      for (const task of pending ?? []) {
+        const trigger = triggerFor(
+          task.due_date as string,
+          task.due_time as string | null,
+          Number(task.remind_minutes_before),
+        )
+
+        const due =
+          trigger.date < date ||
+          (trigger.date === date && trigger.minutes <= minutes)
+        if (!due) continue
+        taskRemindersDue += 1
+
+        // Anything more than a day late is stale — a reminder for something
+        // that was due last week helps nobody. Stamp it so it stays quiet.
+        const stale = trigger.date < shiftDate(date, -1)
+
+        if (!stale && !dryRun) {
+          notified += await pushToUser(settings.user_id, {
+            title: task.due_time ? 'Coming up' : 'Due today',
+            body: task.due_time
+              ? `${task.title} at ${(task.due_time as string).slice(0, 5)}`
+              : (task.title as string),
+            url: '/tasks',
+            // Per task, so two reminders don't collapse into one notification.
+            tag: `lume-task-${task.id}`,
+          })
+        }
+
+        if (!dryRun) {
+          await admin
+            .from('tasks')
+            .update({ reminded_at: new Date().toISOString() })
+            .eq('id', task.id)
+        }
+      }
+    }
+
     if (dryRun) {
       const { count: subs } = await admin
         .from('push_subscriptions')
@@ -190,6 +277,7 @@ Deno.serve(async (req) => {
         local_minutes: minutes,
         reminder_at: reminderAt,
         in_bucket: inBucket,
+        task_reminders_due_now: taskRemindersDue,
         subscriptions: subs ?? 0,
         vapid: vapidError ?? 'configured',
       })
