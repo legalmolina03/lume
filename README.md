@@ -42,21 +42,56 @@ npm run dev
 
 Optional, and the only part with extra setup.
 
+Generate a VAPID pair and a random shared secret:
+
 ```bash
 npx web-push generate-vapid-keys
 ```
 
-- Public key → `VITE_VAPID_PUBLIC_KEY` in `.env.local`
-- Private key → an Edge Function secret, never committed:
+Four values go in as Edge Function secrets (Dashboard → Project Settings →
+Edge Functions → Secrets), none of them ever committed:
+
+| Secret | Value |
+| --- | --- |
+| `VAPID_PUBLIC_KEY` | from the command above |
+| `VAPID_PRIVATE_KEY` | from the command above |
+| `VAPID_SUBJECT` | `mailto:you@example.com` |
+| `CRON_SECRET` | any random string |
+
+The **public** key also goes in `VITE_VAPID_PUBLIC_KEY` — in `.env.local` for
+local dev, and in the host's environment variables for production. It is safe
+in client code; the private key is what must stay secret.
+
+Then deploy the function and schedule it:
 
 ```bash
-supabase secrets set VAPID_PUBLIC_KEY=... VAPID_PRIVATE_KEY=... VAPID_SUBJECT=mailto:you@example.com
-supabase functions deploy send-reminders
+supabase functions deploy send-reminders --no-verify-jwt
 ```
 
-Then apply `0002_schedule_reminders.sql` and turn reminders on under Settings.
-The function runs every 15 minutes but only notifies users whose reminder time
-falls in the current window *and* who have something outstanding.
+Apply `0002_schedule_reminders.sql` after editing its two placeholders, and
+store the same `CRON_SECRET` in Vault as `lume_cron_secret` so the cron job can
+present it.
+
+Finally, turn reminders on under Settings and set a habit reminder time.
+
+### How it behaves
+
+The job runs every 15 minutes but only notifies a user whose reminder time
+falls inside the current window *and* who has something actually outstanding —
+an unlogged habit due today, or a task due or overdue. Nothing pending means no
+notification, so the reminder keeps meaning something.
+
+`GET|POST ...?dry=1` returns what it *would* do — timezone, local time, whether
+the window is open, subscription count — without sending anything. Useful for
+checking the wiring without waiting for a reminder window.
+
+Two deliberate choices:
+
+- **JWT verification is off**, because pg_cron has no user session to present.
+  The `CRON_SECRET` header takes its place, checked before anything else runs.
+- **It fails closed.** With `CRON_SECRET` unset, every request is rejected
+  rather than allowed through, so a half-finished deploy is inert rather than
+  an open notification trigger.
 
 ## Scripts
 

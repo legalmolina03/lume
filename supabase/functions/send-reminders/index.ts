@@ -8,8 +8,11 @@
  * are skipped, so the reminder keeps meaning something.
  *
  * Deploy:  supabase functions deploy send-reminders
- * Secrets: supabase secrets set VAPID_PUBLIC_KEY=... VAPID_PRIVATE_KEY=... \
- *                               VAPID_SUBJECT=mailto:you@example.com
+ * Secrets: VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT, CRON_SECRET
+ *
+ * It runs with JWT verification off, because pg_cron has no user session to
+ * present. A shared secret takes its place: without it the endpoint would be
+ * an open notification trigger for anyone who learned the URL.
  */
 
 import { createClient } from 'jsr:@supabase/supabase-js@2'
@@ -20,11 +23,35 @@ const BUCKET_MINUTES = 15
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-const VAPID_PUBLIC_KEY = Deno.env.get('VAPID_PUBLIC_KEY')!
-const VAPID_PRIVATE_KEY = Deno.env.get('VAPID_PRIVATE_KEY')!
+const VAPID_PUBLIC_KEY = Deno.env.get('VAPID_PUBLIC_KEY')
+const VAPID_PRIVATE_KEY = Deno.env.get('VAPID_PRIVATE_KEY')
 const VAPID_SUBJECT = Deno.env.get('VAPID_SUBJECT') ?? 'mailto:admin@example.com'
+const CRON_SECRET = Deno.env.get('CRON_SECRET')
 
-webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY)
+/**
+ * Configured on first use, not at import time.
+ *
+ * `setVapidDetails` throws on missing or malformed keys. At module scope that
+ * throw kills the worker before the handler runs, so a deploy with unset
+ * secrets returned an opaque WORKER_ERROR 500 for every request — including
+ * ones that should have been rejected as unauthorized. Deferring it means
+ * misconfiguration reports itself instead.
+ */
+let vapidReady = false
+
+function configureWebPush(): string | null {
+  if (vapidReady) return null
+  if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) {
+    return 'VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY must both be set.'
+  }
+  try {
+    webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY)
+    vapidReady = true
+    return null
+  } catch (err) {
+    return `Invalid VAPID configuration: ${(err as Error).message}`
+  }
+}
 
 // Service role: this runs with no user session and must read across accounts.
 const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
@@ -105,7 +132,28 @@ async function pushToUser(userId: string, payload: Payload): Promise<number> {
   return sent
 }
 
-Deno.serve(async () => {
+Deno.serve(async (req) => {
+  // Constant-time-ish gate. Refusing when the secret is unset is deliberate:
+  // a misconfigured deploy should be inert, not wide open.
+  if (!CRON_SECRET || req.headers.get('x-cron-secret') !== CRON_SECRET) {
+    return new Response(JSON.stringify({ error: 'unauthorized' }), {
+      status: 401,
+      headers: { 'content-type': 'application/json' },
+    })
+  }
+
+  // `?dry=1` reports who would be notified without sending anything, so the
+  // wiring can be checked without waiting for a reminder window.
+  const dryRun = new URL(req.url).searchParams.get('dry') === '1'
+
+  const vapidError = configureWebPush()
+  if (vapidError && !dryRun) {
+    return new Response(JSON.stringify({ error: vapidError }), {
+      status: 500,
+      headers: { 'content-type': 'application/json' },
+    })
+  }
+
   const { data: settingsRows, error } = await admin
     .from('user_settings')
     .select('*')
@@ -118,6 +166,7 @@ Deno.serve(async () => {
   }
 
   let notified = 0
+  const inspected: unknown[] = []
 
   for (const settings of settingsRows ?? []) {
     const { date, minutes, weekday } = localNow(settings.timezone ?? 'UTC')
@@ -129,6 +178,23 @@ Deno.serve(async () => {
       reminderAt !== null &&
       minutes >= reminderAt &&
       minutes < reminderAt + BUCKET_MINUTES
+
+    if (dryRun) {
+      const { count: subs } = await admin
+        .from('push_subscriptions')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', settings.user_id)
+      inspected.push({
+        timezone: settings.timezone,
+        local_date: date,
+        local_minutes: minutes,
+        reminder_at: reminderAt,
+        in_bucket: inBucket,
+        subscriptions: subs ?? 0,
+        vapid: vapidError ?? 'configured',
+      })
+      continue
+    }
 
     if (!inBucket) continue
 
@@ -208,7 +274,8 @@ Deno.serve(async () => {
     }
   }
 
-  return new Response(JSON.stringify({ notified }), {
-    headers: { 'content-type': 'application/json' },
-  })
+  return new Response(
+    JSON.stringify(dryRun ? { dry_run: true, inspected } : { notified }),
+    { headers: { 'content-type': 'application/json' } },
+  )
 })

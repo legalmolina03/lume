@@ -113,6 +113,20 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
         if (data) {
           setSettings(data)
           setAppearance({ theme: data.theme, accent: data.accent })
+
+          // Reminders are scheduled against the stored timezone, so a stale
+          // one silently fires them at the wrong hour. Trust the device and
+          // keep the row in step — including after a move or a DST shift.
+          const deviceZone = Intl.DateTimeFormat().resolvedOptions().timeZone
+          if (deviceZone && deviceZone !== data.timezone) {
+            void supabase
+              .from('user_settings')
+              .update({ timezone: deviceZone })
+              .eq('user_id', userId)
+              .then(() => {
+                if (active) setSettings((prev) => prev && { ...prev, timezone: deviceZone })
+              })
+          }
         }
         setLoading(false)
       })
