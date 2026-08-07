@@ -4,6 +4,7 @@ import { SettingsProvider } from './context/SettingsContext'
 import { DataProvider } from './context/DataContext'
 import { isSupabaseConfigured } from './lib/supabase'
 import { AppShell } from './components/AppShell'
+import { ToastProvider } from './components/ui/Toast'
 import { LumeMark } from './components/LumeMark'
 import { SetupPage } from './pages/SetupPage'
 import { AuthPage } from './pages/AuthPage'
@@ -37,21 +38,23 @@ function AuthenticatedApp() {
 
   return (
     <DataProvider>
-      <Routes>
-        {/* Outside the shell: it is a transient redirect target, not a page. */}
-        <Route path="spotify/callback" element={<SpotifyCallbackPage />} />
-        <Route element={<AppShell />}>
-          <Route index element={<DashboardPage />} />
-          <Route path="menu" element={<OverviewPage />} />
-          <Route path="habits" element={<HabitsPage />} />
-          <Route path="tasks" element={<TasksPage />} />
-          <Route path="focus" element={<FocusPage />} />
-          <Route path="calendar" element={<CalendarPage />} />
-          <Route path="activity" element={<ActivityPage />} />
-          <Route path="settings" element={<SettingsPage />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Route>
-      </Routes>
+      <ToastProvider>
+        <Routes>
+          {/* Outside the shell: a transient redirect target, not a page. */}
+          <Route path="spotify/callback" element={<SpotifyCallbackPage />} />
+          <Route element={<AppShell />}>
+            <Route index element={<DashboardPage />} />
+            <Route path="menu" element={<OverviewPage />} />
+            <Route path="habits" element={<HabitsPage />} />
+            <Route path="tasks" element={<TasksPage />} />
+            <Route path="focus" element={<FocusPage />} />
+            <Route path="calendar" element={<CalendarPage />} />
+            <Route path="activity" element={<ActivityPage />} />
+            <Route path="settings" element={<SettingsPage />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Route>
+        </Routes>
+      </ToastProvider>
     </DataProvider>
   )
 }

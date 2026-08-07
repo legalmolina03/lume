@@ -5,6 +5,7 @@ import { fromDateKey, relativeDayLabel } from '../../lib/dates'
 import { useData } from '../../context/DataContext'
 import { LifeAreaChip, PriorityIcon } from '../Signals'
 import { IconButton } from '../ui/Button'
+import { useToast } from '../ui/Toast'
 
 export function isOverdue(task: Task, today = new Date()): boolean {
   if (task.status === 'done' || !task.due_date) return false
@@ -36,6 +37,7 @@ export function TaskCard({
   showPin?: boolean
 }) {
   const { lifeAreaById, projectById, setTaskDone, setTaskPinned } = useData()
+  const toast = useToast()
   const area = lifeAreaById(task.life_area_id)
   const project = projectById(task.project_id)
   const overdue = isOverdue(task)
@@ -55,19 +57,36 @@ export function TaskCard({
         />
       )}
 
+      {/* The -m-2.5 p-2.5 pair grows the tap target to 44px without moving
+          the box: at 24px this was below every platform's minimum and easy to
+          miss on a phone. The tick sits faint rather than transparent, so the
+          control reads as something to press. */}
       <button
         type="button"
         role="checkbox"
         aria-checked={done}
         aria-label={`Mark "${task.title}" ${done ? 'not done' : 'done'}`}
-        onClick={() => void setTaskDone(task.id, !done)}
-        className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md border transition-colors ${
-          done
-            ? 'border-accent bg-accent text-accent-contrast'
-            : 'border-border text-transparent hover:border-accent'
-        }`}
+        onClick={() => {
+          const next = !done
+          void setTaskDone(task.id, next).then(() => {
+            if (next) {
+              toast.show(`Completed "${task.title}"`, () =>
+                setTaskDone(task.id, false),
+              )
+            }
+          })
+        }}
+        className="-m-2.5 shrink-0 p-2.5"
       >
-        <Check size={13} strokeWidth={3} />
+        <span
+          className={`flex h-6 w-6 items-center justify-center rounded-md border transition-colors ${
+            done
+              ? 'border-accent bg-accent text-accent-contrast'
+              : 'border-border text-muted/35 hover:border-accent hover:text-accent'
+          }`}
+        >
+          <Check size={13} strokeWidth={3} />
+        </span>
       </button>
 
       <button
