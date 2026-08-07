@@ -93,6 +93,7 @@ interface DataValue {
   saveFocusSession: (
     input: Partial<FocusSession> & { planned_duration_minutes: number },
   ) => Promise<void>
+  deleteFocusSession: (id: string) => Promise<void>
 
   lifeAreaById: (id: string | null) => LifeArea | null
   projectById: (id: string | null) => Project | null
@@ -551,6 +552,15 @@ export function DataProvider({ children }: { children: ReactNode }) {
           .single()
         if (err) throw err
         setFocusSessions((prev) => [data, ...prev])
+      },
+
+      async deleteFocusSession(id) {
+        const { error: err } = await supabase
+          .from('focus_sessions')
+          .delete()
+          .eq('id', id)
+        if (err) throw err
+        setFocusSessions((prev) => prev.filter((s) => s.id !== id))
       },
 
       /* ------------------------------------------------------- lookups -- */

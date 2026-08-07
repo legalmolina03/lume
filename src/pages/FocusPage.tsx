@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Pause, Play, Square, SkipForward } from 'lucide-react'
+import { Pause, Play, Square, SkipForward, Trash2 } from 'lucide-react'
 import { format } from 'date-fns'
 import { useData } from '../context/DataContext'
 import { useSettings } from '../context/SettingsContext'
 import { useFocusTimer } from '../hooks/useFocusTimer'
 import { formatClock, formatDuration } from '../lib/dates'
-import { Button } from '../components/ui/Button'
+import { Button, IconButton } from '../components/ui/Button'
 import { Card, EmptyState, SectionHeader } from '../components/ui/Card'
 import { Field, Input, Select, Textarea } from '../components/ui/Field'
 import { LifeAreaChip } from '../components/Signals'
@@ -17,8 +17,15 @@ import { LifeAreaChip } from '../components/Signals'
  * next session opens on the same numbers.
  */
 export function FocusPage() {
-  const { tasks, lifeAreas, focusSessions, saveFocusSession, lifeAreaById, taskById } =
-    useData()
+  const {
+    tasks,
+    lifeAreas,
+    focusSessions,
+    saveFocusSession,
+    deleteFocusSession,
+    lifeAreaById,
+    taskById,
+  } = useData()
   const { settings, updateSettings } = useSettings()
   const [searchParams] = useSearchParams()
 
@@ -267,24 +274,45 @@ export function FocusPage() {
                   key={session.id}
                   className="rounded-xl border border-border px-3 py-2"
                 >
-                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
-                    <span className="font-medium">
-                      {formatDuration(session.duration_minutes)}
-                    </span>
-                    <span className="text-muted">
-                      {format(new Date(session.started_at), 'EEE d MMM, HH:mm')}
-                    </span>
-                    {!session.completed && (
-                      <span className="text-muted">(ended early)</span>
-                    )}
-                    {task && <span className="text-muted">· {task.title}</span>}
-                    {area && <LifeAreaChip area={area} />}
+                  <div className="flex items-start gap-2">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+                        <span className="font-medium">
+                          {formatDuration(session.duration_minutes)}
+                        </span>
+                        <span className="text-muted">
+                          {format(
+                            new Date(session.started_at),
+                            'EEE d MMM, HH:mm',
+                          )}
+                        </span>
+                        {!session.completed && (
+                          <span className="text-muted">(ended early)</span>
+                        )}
+                        {task && <span className="text-muted">· {task.title}</span>}
+                        {area && <LifeAreaChip area={area} />}
+                      </div>
+                      {session.notes && (
+                        <p className="mt-1 text-xs whitespace-pre-wrap text-muted">
+                          {session.notes}
+                        </p>
+                      )}
+                    </div>
+
+                    <IconButton
+                      aria-label={`Delete focus session from ${format(
+                        new Date(session.started_at),
+                        'd MMM HH:mm',
+                      )}`}
+                      onClick={() => {
+                        if (confirm('Delete this focus session? This cannot be undone.')) {
+                          void deleteFocusSession(session.id)
+                        }
+                      }}
+                    >
+                      <Trash2 size={14} />
+                    </IconButton>
                   </div>
-                  {session.notes && (
-                    <p className="mt-1 text-xs whitespace-pre-wrap text-muted">
-                      {session.notes}
-                    </p>
-                  )}
                 </li>
               )
             })}

@@ -20,7 +20,7 @@ import {
   unsubscribeFromPush,
 } from '../lib/push'
 import type { PushState } from '../lib/push'
-import type { AccentName, LifeArea, ThemeName } from '../lib/types'
+import type { AccentName, LifeArea, Project, ThemeName } from '../lib/types'
 import { Button, IconButton } from '../components/ui/Button'
 import { Card, ErrorBanner, SectionHeader } from '../components/ui/Card'
 import { ColorPicker, Field, Input, Segmented } from '../components/ui/Field'
@@ -263,8 +263,22 @@ function LifeAreasCard() {
 /* -------------------------------------------------------------------------- */
 
 function ProjectsCard() {
-  const { projects, createProject, deleteProject } = useData()
+  const { projects, createProject, updateProject, deleteProject } = useData()
   const [name, setName] = useState('')
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [nameDraft, setNameDraft] = useState('')
+
+  function beginEdit(project: Project) {
+    setEditingId(project.id)
+    setNameDraft(project.name)
+  }
+
+  function commitName(project: Project) {
+    const trimmed = nameDraft.trim()
+    setEditingId(null)
+    if (!trimmed || trimmed === project.name) return
+    void updateProject(project.id, { name: trimmed }).catch(() => {})
+  }
 
   return (
     <Card>
@@ -273,27 +287,69 @@ function ProjectsCard() {
       {projects.length > 0 && (
         <ul className="mb-3 flex flex-col gap-2">
           {projects.map((project) => (
-            <li
-              key={project.id}
-              className="flex items-center gap-2 rounded-xl border border-border px-3 py-2"
-            >
-              <span
-                className="h-3 w-3 shrink-0 rounded-full"
-                style={{ backgroundColor: project.color }}
-              />
-              <span className="min-w-0 flex-1 truncate text-sm">
-                {project.name}
-              </span>
-              <IconButton
-                aria-label={`Delete ${project.name}`}
-                onClick={() => {
-                  if (confirm(`Delete "${project.name}"? Its tasks stay.`)) {
-                    void deleteProject(project.id)
+            <li key={project.id} className="rounded-xl border border-border">
+              <div className="flex items-center gap-2 px-3 py-2">
+                <span
+                  className="h-3 w-3 shrink-0 rounded-full"
+                  style={{ backgroundColor: project.color }}
+                />
+
+                {editingId === project.id ? (
+                  <Input
+                    value={nameDraft}
+                    autoFocus
+                    onChange={(e) => setNameDraft(e.target.value)}
+                    onBlur={() => commitName(project)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') commitName(project)
+                      if (e.key === 'Escape') setEditingId(null)
+                    }}
+                    className="flex-1"
+                  />
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => beginEdit(project)}
+                    className="min-w-0 flex-1 truncate text-left text-sm"
+                  >
+                    {project.name}
+                  </button>
+                )}
+
+                <IconButton
+                  aria-label={
+                    editingId === project.id
+                      ? `Done editing ${project.name}`
+                      : `Edit ${project.name}`
                   }
-                }}
-              >
-                <Trash2 size={15} />
-              </IconButton>
+                  onClick={() =>
+                    editingId === project.id
+                      ? commitName(project)
+                      : beginEdit(project)
+                  }
+                >
+                  {editingId === project.id ? <X size={15} /> : <Check size={15} />}
+                </IconButton>
+                <IconButton
+                  aria-label={`Delete ${project.name}`}
+                  onClick={() => {
+                    if (confirm(`Delete "${project.name}"? Its tasks stay.`)) {
+                      void deleteProject(project.id)
+                    }
+                  }}
+                >
+                  <Trash2 size={15} />
+                </IconButton>
+              </div>
+
+              {editingId === project.id && (
+                <div className="border-t border-border px-3 py-2">
+                  <ColorPicker
+                    value={project.color}
+                    onChange={(color) => void updateProject(project.id, { color })}
+                  />
+                </div>
+              )}
             </li>
           ))}
         </ul>

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Trash2 } from 'lucide-react'
 import type { Habit, HabitFrequency, HabitGoalType } from '../../lib/types'
 import { useData } from '../../context/DataContext'
 import { Modal } from '../ui/Modal'
@@ -48,7 +49,7 @@ export function HabitEditor({
   habit: Habit | null
   onClose: () => void
 }) {
-  const { lifeAreas, createHabit, updateHabit } = useData()
+  const { lifeAreas, createHabit, updateHabit, deleteHabit } = useData()
   const [draft, setDraft] = useState<Draft>(() => draftFrom(habit))
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -110,6 +111,26 @@ export function HabitEditor({
       onClose={onClose}
       footer={
         <>
+          {habit && (
+            <Button
+              variant="danger"
+              className="mr-auto"
+              onClick={() => {
+                // Deleting takes the history with it, so the confirm points at
+                // archiving — the non-destructive option people usually want.
+                if (
+                  confirm(
+                    `Delete "${habit.name}" and its entire history? This cannot be undone.\n\nArchiving keeps the history and hides the habit instead.`,
+                  )
+                ) {
+                  void deleteHabit(habit.id).then(onClose)
+                }
+              }}
+            >
+              <Trash2 size={14} />
+              Delete
+            </Button>
+          )}
           <Button onClick={onClose}>Cancel</Button>
           <Button variant="primary" onClick={() => void save()} disabled={busy}>
             {busy ? 'Saving…' : 'Save'}
