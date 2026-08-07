@@ -1,4 +1,4 @@
-import { Bell, Check, Pin, PinOff } from 'lucide-react'
+import { Bell, Check, Pin, PinOff, RotateCcw } from 'lucide-react'
 import { format, isBefore, parse, startOfDay } from 'date-fns'
 import type { Task } from '../../lib/types'
 import { fromDateKey, relativeDayLabel } from '../../lib/dates'
@@ -6,6 +6,7 @@ import { useData } from '../../context/DataContext'
 import { LifeAreaChip, PriorityIcon } from '../Signals'
 import { IconButton } from '../ui/Button'
 import { useToast } from '../ui/Toast'
+import { useSwipeAction } from '../../hooks/useSwipeAction'
 
 export function isOverdue(task: Task, today = new Date()): boolean {
   if (task.status === 'done' || !task.due_date) return false
@@ -43,12 +44,47 @@ export function TaskCard({
   const overdue = isOverdue(task)
   const done = task.status === 'done'
 
+  /** Same path as the checkbox, so both routes confirm and both can be undone. */
+  const toggleDone = () => {
+    const next = !done
+    void setTaskDone(task.id, next).then(() => {
+      if (next) {
+        toast.show(`Completed "${task.title}"`, () => setTaskDone(task.id, false))
+      }
+    })
+  }
+
+  const swipe = useSwipeAction({ onTrigger: toggleDone })
+
   return (
-    <div
-      className={`relative flex items-center gap-3 overflow-hidden rounded-xl border border-border bg-surface-2/50 py-2.5 pr-2 pl-3.5 ${
-        overdue ? 'overdue-edge' : ''
-      }`}
-    >
+    <div className="relative overflow-hidden rounded-xl">
+      {/* Revealed as the row slides. Colour only arrives at the trigger point,
+          so the gesture says whether it will act before you let go. */}
+      <div
+        aria-hidden
+        className={`absolute inset-0 flex items-center gap-2 rounded-xl px-4 transition-colors ${
+          swipe.armed ? 'bg-accent text-accent-contrast' : 'bg-accent-soft text-accent'
+        }`}
+        style={{ opacity: swipe.progress === 0 ? 0 : 1 }}
+      >
+        {done ? <RotateCcw size={16} /> : <Check size={16} strokeWidth={3} />}
+        <span className="text-xs font-medium">
+          {done ? 'Reopen' : swipe.armed ? 'Release to complete' : 'Complete'}
+        </span>
+      </div>
+
+      <div
+        {...swipe.handlers}
+        style={{
+          transform: `translateX(${swipe.dx}px)`,
+          transition: swipe.settling ? 'transform 180ms ease-out' : undefined,
+          // Vertical scrolling stays the browser's; horizontal is ours.
+          touchAction: 'pan-y',
+        }}
+        className={`relative flex items-center gap-3 overflow-hidden rounded-xl border border-border bg-surface-2/50 py-2.5 pr-2 pl-3.5 ${
+          overdue ? 'overdue-edge' : ''
+        }`}
+      >
       {!overdue && area && (
         <span
           aria-hidden
@@ -66,16 +102,7 @@ export function TaskCard({
         role="checkbox"
         aria-checked={done}
         aria-label={`Mark "${task.title}" ${done ? 'not done' : 'done'}`}
-        onClick={() => {
-          const next = !done
-          void setTaskDone(task.id, next).then(() => {
-            if (next) {
-              toast.show(`Completed "${task.title}"`, () =>
-                setTaskDone(task.id, false),
-              )
-            }
-          })
-        }}
+        onClick={toggleDone}
         className="-m-2.5 shrink-0 p-2.5"
       >
         <span
@@ -140,6 +167,7 @@ export function TaskCard({
           {task.pinned ? <Pin size={15} /> : <PinOff size={15} />}
         </IconButton>
       )}
+      </div>
     </div>
   )
 }
