@@ -21,6 +21,7 @@ import {
 } from '../lib/push'
 import type { PushState } from '../lib/push'
 import type { AccentName, LifeArea, Project, ThemeName } from '../lib/types'
+import { SpotifyCard } from '../components/settings/SpotifyCard'
 import { Button, IconButton } from '../components/ui/Button'
 import { Card, ErrorBanner, SectionHeader } from '../components/ui/Card'
 import { ColorPicker, Field, Input, Segmented } from '../components/ui/Field'
@@ -32,6 +33,7 @@ export function SettingsPage() {
       <LifeAreasCard />
       <ProjectsCard />
       <FocusDefaultsCard />
+      <SpotifyCard />
       <RemindersCard />
       <AccountCard />
     </div>

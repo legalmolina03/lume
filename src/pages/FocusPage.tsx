@@ -5,6 +5,8 @@ import { format } from 'date-fns'
 import { useData } from '../context/DataContext'
 import { useSettings } from '../context/SettingsContext'
 import { useFocusTimer } from '../hooks/useFocusTimer'
+import { useSpotify } from '../hooks/useSpotify'
+import { SpotifyBar } from '../components/focus/SpotifyBar'
 import { formatClock, formatDuration } from '../lib/dates'
 import { Button, IconButton } from '../components/ui/Button'
 import { Card, EmptyState, SectionHeader } from '../components/ui/Card'
@@ -28,6 +30,7 @@ export function FocusPage() {
   } = useData()
   const { settings, updateSettings } = useSettings()
   const [searchParams] = useSearchParams()
+  const spotify = useSpotify({ poll: true })
 
   const [workMinutes, setWorkMinutes] = useState(25)
   const [breakMinutes, setBreakMinutes] = useState(5)
@@ -83,9 +86,18 @@ export function FocusPage() {
     onWorkComplete: (elapsed) => {
       void persist(elapsed, true, startedAtRef.current)
       notify('Focus session done', `Time for a ${breakMinutes} minute break.`)
+      // The break is when you step away, so the music should stop with you.
+      if (settings?.spotify_autopause !== false) void spotify.pause()
     },
     onBreakComplete: () => notify('Break over', 'Ready for another round?'),
   })
+
+  /** Starts the chosen playlist, or resumes whatever was queued. */
+  function startMusic() {
+    if (settings?.spotify_autoplay === false) return
+    if (!spotify.connected) return
+    void spotify.play(settings?.spotify_playlist_uri ?? undefined)
+  }
 
   useEffect(() => {
     if (timer.startedAt) startedAtRef.current = timer.startedAt
@@ -143,7 +155,13 @@ export function FocusPage() {
 
           <div className="flex flex-wrap justify-center gap-2">
             {timer.phase === 'idle' && (
-              <Button variant="primary" onClick={timer.startWork}>
+              <Button
+                variant="primary"
+                onClick={() => {
+                  timer.startWork()
+                  startMusic()
+                }}
+              >
                 <Play size={15} />
                 Start {workMinutes} min
               </Button>
@@ -171,6 +189,7 @@ export function FocusPage() {
                       if (elapsedMinutes >= 0.5) {
                         void persist(elapsedMinutes, false, startedAt)
                       }
+                      if (settings?.spotify_autopause !== false) void spotify.pause()
                     }}
                   >
                     <Square size={15} />
@@ -221,6 +240,8 @@ export function FocusPage() {
         </div>
 
         <div className="mt-2 flex flex-col gap-3 border-t border-border pt-4">
+          <SpotifyBar spotify={spotify} />
+
           <div className="grid grid-cols-2 gap-3">
             <Field label="Working on">
               <Select value={taskId} onChange={(e) => setTaskId(e.target.value)}>

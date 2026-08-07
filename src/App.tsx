@@ -14,6 +14,7 @@ import { FocusPage } from './pages/FocusPage'
 import { CalendarPage } from './pages/CalendarPage'
 import { ActivityPage } from './pages/ActivityPage'
 import { SettingsPage } from './pages/SettingsPage'
+import { SpotifyCallbackPage } from './pages/SpotifyCallbackPage'
 
 function Splash() {
   return (
@@ -36,6 +37,8 @@ function AuthenticatedApp() {
   return (
     <DataProvider>
       <Routes>
+        {/* Outside the shell: it is a transient redirect target, not a page. */}
+        <Route path="spotify/callback" element={<SpotifyCallbackPage />} />
         <Route element={<AppShell />}>
           <Route index element={<DashboardPage />} />
           <Route path="habits" element={<HabitsPage />} />

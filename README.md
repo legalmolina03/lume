@@ -93,6 +93,38 @@ Two deliberate choices:
   rather than allowed through, so a half-finished deploy is inert rather than
   an open notification trigger.
 
+## Spotify
+
+Optional. Starts a chosen playlist when a focus session begins, pauses it when
+the session ends, and puts now-playing plus transport controls under the timer.
+
+1. Create an app at [developer.spotify.com/dashboard](https://developer.spotify.com/dashboard)
+2. Register **both** redirect URIs on it:
+   - `https://<your-domain>/spotify/callback`
+   - `http://127.0.0.1:5173/spotify/callback`
+3. Put its client ID in `VITE_SPOTIFY_CLIENT_ID` (locally and on the host)
+4. Settings → Spotify → Connect, then pick a focus playlist
+
+There is no client secret. The app uses Authorization Code with PKCE, the only
+Spotify flow that both avoids a secret and still returns a refresh token — the
+implicit flow does not, and would force a re-login every hour.
+
+Things worth knowing:
+
+- **Playback control requires Premium.** Reading now-playing works on free;
+  play/pause/skip returns 403 without it.
+- **Spotify rejects `localhost` in redirect URIs** — loopback has to be the
+  literal `127.0.0.1`. Browse to `127.0.0.1:5173` when testing locally, or the
+  callback will be refused.
+- **Lume drives an existing device, it does not play audio.** The Web Playback
+  SDK, which would, is desktop-browser only and unusable on a phone. So Spotify
+  must already be open somewhere; commands sent with no active device return a
+  clear "no active device" message rather than failing silently.
+- Tokens are stored per-user in `spotify_tokens` under RLS, not in
+  `localStorage`, so connecting on one device covers the others.
+- A Spotify app starts in development mode, capped at 25 manually-added users.
+  Fine for personal use; opening it up needs a quota extension request.
+
 ## Scripts
 
 | Command | What it does |

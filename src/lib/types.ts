@@ -132,6 +132,22 @@ export type UserSettings = {
   accent: AccentName
   theme: ThemeName
   timezone: string
+  /** Playlist a focus session starts. Null means "control whatever is playing". */
+  spotify_playlist_uri: string | null
+  spotify_playlist_name: string | null
+  spotify_autoplay: boolean
+  spotify_autopause: boolean
+  created_at: string
+  updated_at: string
+}
+
+export type SpotifyTokens = {
+  user_id: string
+  access_token: string
+  refresh_token: string
+  expires_at: string
+  scope: string | null
+  display_name: string | null
   created_at: string
   updated_at: string
 }
@@ -195,6 +211,11 @@ export type Database = {
         'id' | 'created_at'
       >
       user_settings: Writable<UserSettings, 'user_id', 'created_at'>
+      spotify_tokens: Writable<
+        SpotifyTokens,
+        'user_id' | 'access_token' | 'refresh_token' | 'expires_at',
+        'created_at'
+      >
       push_subscriptions: Writable<
         PushSubscriptionRow,
         'user_id' | 'endpoint' | 'p256dh' | 'auth',
