@@ -105,6 +105,18 @@ export function FocusPage() {
 
   const ring = 2 * Math.PI * 54
 
+  /**
+   * Lock-down: while a work phase runs, everything except the timer is hidden.
+   *
+   * It cannot stop you leaving — a web app has no business trying, and any
+   * "block" it claimed would be a lie you could walk around by opening a tab.
+   * What it can do is remove the pull: no task list to groom, no session log
+   * to admire, nothing one glance away. Breaks are exempt, since that is when
+   * you are meant to look up.
+   */
+  const lockedDown =
+    settings?.focus_lockdown === true && timer.phase === 'work' && timer.running
+
   return (
     <div className="flex flex-col gap-4">
       <Card>
@@ -239,7 +251,11 @@ export function FocusPage() {
           )}
         </div>
 
-        <div className="mt-2 flex flex-col gap-3 border-t border-border pt-4">
+        <div
+          className={`mt-2 flex flex-col gap-3 border-t border-border pt-4 ${
+            lockedDown ? 'hidden' : ''
+          }`}
+        >
           <SpotifyBar spotify={spotify} />
 
           <div className="grid grid-cols-2 gap-3">
@@ -280,7 +296,13 @@ export function FocusPage() {
         </div>
       </Card>
 
-      <Card>
+      {lockedDown && (
+        <p className="text-center text-[11px] text-muted">
+          Locked down until the session ends. Pause to bring everything back.
+        </p>
+      )}
+
+      <Card className={lockedDown ? 'hidden' : ''}>
         <SectionHeader title="Past sessions" hint={`${focusSessions.length}`} />
 
         {focusSessions.length === 0 ? (

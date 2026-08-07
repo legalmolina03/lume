@@ -1,15 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import {
-  CalendarDays,
-  CheckSquare,
-  History,
-  Repeat,
-  Timer,
-  X,
-} from 'lucide-react'
-import type { LucideIcon } from 'lucide-react'
+import { X } from 'lucide-react'
 import { LumeMark } from './LumeMark'
+import { SECTIONS, resolveSectionOrder } from '../lib/sections'
+import { useSettings } from '../context/SettingsContext'
 
 /**
  * The Radial Ring (Section 5, decided over Arc Slide).
@@ -28,23 +22,8 @@ const RADIUS = 92
 const ARC_START = 200 // down-left, in degrees (0 = right, positive = up)
 const ARC_END = -20 // down-right
 
-interface Section {
-  label: string
-  path: string
-  Icon: LucideIcon
-}
-
-/** Ordered anticlockwise from the bottom-left of the ring. */
-const SECTIONS: Section[] = [
-  { label: 'Activity', path: '/activity', Icon: History },
-  { label: 'Tasks', path: '/tasks', Icon: CheckSquare },
-  { label: 'Habits', path: '/habits', Icon: Repeat },
-  { label: 'Focus', path: '/focus', Icon: Timer },
-  { label: 'Calendar', path: '/calendar', Icon: CalendarDays },
-]
-
-function offsetFor(index: number): { x: number; y: number } {
-  const step = (ARC_END - ARC_START) / (SECTIONS.length - 1)
+function offsetFor(index: number, count: number): { x: number; y: number } {
+  const step = (ARC_END - ARC_START) / Math.max(1, count - 1)
   const degrees = ARC_START + step * index
   const radians = (degrees * Math.PI) / 180
   return {
@@ -59,6 +38,14 @@ export function RadialNav() {
   const navigate = useNavigate()
   const location = useLocation()
   const firstItemRef = useRef<HTMLButtonElement>(null)
+  const { settings } = useSettings()
+
+  // The ring reads the same order as the header and the hub. Reversed so the
+  // user's first section lands at the top of the arc rather than the bottom
+  // left, which is where the thumb looks first.
+  const sections = resolveSectionOrder(settings?.section_order)
+    .map((key) => SECTIONS[key])
+    .reverse()
 
   // Close on route change, so tapping a section leaves a clean dashboard.
   useEffect(() => {
@@ -91,8 +78,8 @@ export function RadialNav() {
         className="fixed bottom-[calc(2rem+env(safe-area-inset-bottom))] left-1/2 z-50 -translate-x-1/2"
       >
         <div className="relative">
-          {SECTIONS.map((section, index) => {
-            const { x, y } = offsetFor(index)
+          {sections.map((section, index) => {
+            const { x, y } = offsetFor(index, sections.length)
             const active = location.pathname.startsWith(section.path)
 
             return (

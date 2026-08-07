@@ -11,16 +11,34 @@ interface Draft {
   title: string
   description: string
   due_date: string
+  due_time: string
+  remind: string
   priority: TaskPriority
   project_id: string
   life_area_id: string
 }
+
+/** Lead times offered for a reminder. '' means no reminder. */
+const REMINDER_CHOICES: { value: string; label: string }[] = [
+  { value: '', label: 'No reminder' },
+  { value: '0', label: 'At the time' },
+  { value: '10', label: '10 minutes before' },
+  { value: '30', label: '30 minutes before' },
+  { value: '60', label: '1 hour before' },
+  { value: '180', label: '3 hours before' },
+  { value: '1440', label: '1 day before' },
+]
 
 function draftFrom(task: Task | null): Draft {
   return {
     title: task?.title ?? '',
     description: task?.description ?? '',
     due_date: task?.due_date ?? '',
+    due_time: task?.due_time?.slice(0, 5) ?? '',
+    remind:
+      task?.remind_minutes_before === null || task?.remind_minutes_before === undefined
+        ? ''
+        : String(task.remind_minutes_before),
     priority: task?.priority ?? 'medium',
     project_id: task?.project_id ?? '',
     life_area_id: task?.life_area_id ?? '',
@@ -55,6 +73,12 @@ export function TaskEditor({
       setError('Give the task a title.')
       return
     }
+    // A reminder has nothing to fire against without a due date, and the DB
+    // has a CHECK that says so — catch it here with a sentence instead.
+    if (draft.remind && !draft.due_date) {
+      setError('Pick a due date before setting a reminder.')
+      return
+    }
     setBusy(true)
     setError(null)
     try {
@@ -62,6 +86,11 @@ export function TaskEditor({
         title: draft.title.trim(),
         description: draft.description.trim() || null,
         due_date: draft.due_date || null,
+        due_time: draft.due_date && draft.due_time ? draft.due_time : null,
+        remind_minutes_before: draft.remind ? Number(draft.remind) : null,
+        // Clearing the stamp re-arms the reminder, so editing a task whose
+        // reminder already fired schedules it again rather than staying silent.
+        reminded_at: null,
         priority: draft.priority,
         project_id: draft.project_id || null,
         life_area_id: draft.life_area_id || null,
@@ -132,6 +161,38 @@ export function TaskEditor({
           />
         </Field>
 
+        <Field label="Due time" hint="Optional — blank means any time that day.">
+          <Input
+            type="time"
+            value={draft.due_time}
+            disabled={!draft.due_date}
+            onChange={(e) => patch({ due_time: e.target.value })}
+          />
+        </Field>
+      </div>
+
+      <Field
+        label="Reminder"
+        hint={
+          draft.due_date
+            ? 'Needs notifications turned on under Settings.'
+            : 'Pick a due date first.'
+        }
+      >
+        <Select
+          value={draft.remind}
+          disabled={!draft.due_date}
+          onChange={(e) => patch({ remind: e.target.value })}
+        >
+          {REMINDER_CHOICES.map((c) => (
+            <option key={c.value} value={c.value}>
+              {c.label}
+            </option>
+          ))}
+        </Select>
+      </Field>
+
+      <div className="grid grid-cols-2 gap-3">
         <Field label="Life area">
           <Select
             value={draft.life_area_id}

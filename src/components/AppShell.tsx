@@ -1,30 +1,24 @@
 import { NavLink, Outlet } from 'react-router-dom'
-import {
-  CalendarDays,
-  CheckSquare,
-  History,
-  Home,
-  Repeat,
-  Settings,
-  Timer,
-} from 'lucide-react'
-import type { LucideIcon } from 'lucide-react'
+import { Grid2x2, Home, Settings } from 'lucide-react'
 import { LumeWordmark } from './LumeMark'
 import { RadialNav } from './RadialNav'
+import { CommandPalette } from './CommandPalette'
 import { useData } from '../context/DataContext'
+import { useSettings } from '../context/SettingsContext'
+import { SECTIONS, resolveSectionOrder } from '../lib/sections'
 import { ErrorBanner } from './ui/Card'
-
-const NAV: { label: string; path: string; Icon: LucideIcon }[] = [
-  { label: 'Home', path: '/', Icon: Home },
-  { label: 'Habits', path: '/habits', Icon: Repeat },
-  { label: 'Tasks', path: '/tasks', Icon: CheckSquare },
-  { label: 'Focus', path: '/focus', Icon: Timer },
-  { label: 'Calendar', path: '/calendar', Icon: CalendarDays },
-  { label: 'Activity', path: '/activity', Icon: History },
-]
 
 export function AppShell() {
   const { error } = useData()
+  const { settings } = useSettings()
+
+  // Home and the hub are fixed anchors; the five sections follow the user's
+  // order so the header, the ring and the hub never disagree.
+  const nav = [
+    { label: 'Home', path: '/', Icon: Home },
+    { label: 'Everything', path: '/menu', Icon: Grid2x2 },
+    ...resolveSectionOrder(settings?.section_order).map((key) => SECTIONS[key]),
+  ]
 
   return (
     <div className="min-h-full bg-bg text-text">
@@ -36,7 +30,7 @@ export function AppShell() {
 
           {/* Wide screens get a plain bar; phones get the radial ring instead. */}
           <nav className="ml-auto hidden items-center gap-1 md:flex">
-            {NAV.map(({ label, path, Icon }) => (
+            {nav.map(({ label, path, Icon }) => (
               <NavLink
                 key={path}
                 to={path}
@@ -82,6 +76,8 @@ export function AppShell() {
       <div className="md:hidden">
         <RadialNav />
       </div>
+
+      <CommandPalette />
     </div>
   )
 }

@@ -8,6 +8,7 @@ import { LumeMark } from './components/LumeMark'
 import { SetupPage } from './pages/SetupPage'
 import { AuthPage } from './pages/AuthPage'
 import { DashboardPage } from './pages/DashboardPage'
+import { OverviewPage } from './pages/OverviewPage'
 import { HabitsPage } from './pages/HabitsPage'
 import { TasksPage } from './pages/TasksPage'
 import { FocusPage } from './pages/FocusPage'
@@ -41,6 +42,7 @@ function AuthenticatedApp() {
         <Route path="spotify/callback" element={<SpotifyCallbackPage />} />
         <Route element={<AppShell />}>
           <Route index element={<DashboardPage />} />
+          <Route path="menu" element={<OverviewPage />} />
           <Route path="habits" element={<HabitsPage />} />
           <Route path="tasks" element={<TasksPage />} />
           <Route path="focus" element={<FocusPage />} />

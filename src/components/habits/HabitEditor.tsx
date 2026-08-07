@@ -11,6 +11,7 @@ import {
   Input,
   Segmented,
   Select,
+  Textarea,
   WeekdayPicker,
 } from '../ui/Field'
 
@@ -23,7 +24,10 @@ interface Draft {
   goal_type: HabitGoalType
   goal_target: number
   unit: string
+  step: number
   color: string
+  notes: string
+  reminder_time: string
 }
 
 function draftFrom(habit: Habit | null): Draft {
@@ -36,7 +40,10 @@ function draftFrom(habit: Habit | null): Draft {
     goal_type: habit?.goal_type ?? 'checkbox',
     goal_target: habit?.goal_target ?? 8,
     unit: habit?.unit ?? '',
+    step: habit?.step ?? 1,
     color: habit?.color ?? '#6366f1',
+    notes: habit?.notes ?? '',
+    reminder_time: habit?.reminder_time?.slice(0, 5) ?? '',
   }
 }
 
@@ -88,7 +95,10 @@ export function HabitEditor({
         goal_type: draft.goal_type,
         goal_target: draft.goal_type === 'numeric' ? draft.goal_target : null,
         unit: draft.goal_type === 'numeric' ? draft.unit.trim() || null : null,
+        step: draft.goal_type === 'numeric' ? Math.max(1, draft.step) : 1,
         color: draft.color,
+        notes: draft.notes.trim() || null,
+        reminder_time: draft.reminder_time || null,
       }
 
       if (habit) {
@@ -212,7 +222,7 @@ export function HabitEditor({
       </Field>
 
       {draft.goal_type === 'numeric' && (
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-3 gap-3">
           <Field label="Target">
             <Input
               type="number"
@@ -228,8 +238,36 @@ export function HabitEditor({
               onChange={(e) => patch({ unit: e.target.value })}
             />
           </Field>
+          <Field label="Step" hint="Per tap">
+            <Input
+              type="number"
+              min={1}
+              value={draft.step}
+              onChange={(e) => patch({ step: Number(e.target.value) || 1 })}
+            />
+          </Field>
         </div>
       )}
+
+      <Field
+        label="Reminder time"
+        hint="Overrides the account-wide evening nudge. Blank uses that."
+      >
+        <Input
+          type="time"
+          value={draft.reminder_time}
+          onChange={(e) => patch({ reminder_time: e.target.value })}
+        />
+      </Field>
+
+      <Field label="Notes" hint="Why this habit matters, or how to do it.">
+        <Textarea
+          rows={2}
+          value={draft.notes}
+          placeholder="Two glasses with each meal."
+          onChange={(e) => patch({ notes: e.target.value })}
+        />
+      </Field>
 
       <Field label="Colour">
         <ColorPicker value={draft.color} onChange={(color) => patch({ color })} />

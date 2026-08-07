@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   Bell,
   BellOff,
@@ -21,6 +21,7 @@ import {
 } from '../lib/push'
 import type { PushState } from '../lib/push'
 import type { AccentName, LifeArea, Project, ThemeName } from '../lib/types'
+import { SECTIONS, resolveSectionOrder } from '../lib/sections'
 import { SpotifyCard } from '../components/settings/SpotifyCard'
 import { Button, IconButton } from '../components/ui/Button'
 import { Card, ErrorBanner, SectionHeader } from '../components/ui/Card'
@@ -29,6 +30,7 @@ import { ColorPicker, Field, Input, Segmented } from '../components/ui/Field'
 export function SettingsPage() {
   return (
     <div className="flex flex-col gap-4">
+      <SectionOrderCard />
       <AppearanceCard />
       <LifeAreasCard />
       <ProjectsCard />
@@ -41,6 +43,66 @@ export function SettingsPage() {
 }
 
 /* -------------------------------------------------------------------------- */
+
+/**
+ * One order, used by the dashboard, the hub, the header and the radial ring.
+ * Putting the sections you actually use first is the cheapest personalisation
+ * in the app, and it costs nothing to ignore.
+ */
+function SectionOrderCard() {
+  const { settings, updateSettings } = useSettings()
+  const order = resolveSectionOrder(settings?.section_order)
+
+  function move(index: number, delta: number) {
+    const next = [...order]
+    const target = index + delta
+    if (target < 0 || target >= next.length) return
+    ;[next[index], next[target]] = [next[target], next[index]]
+    void updateSettings({ section_order: next }).catch(() => {})
+  }
+
+  return (
+    <Card>
+      <SectionHeader
+        title="Sections"
+        hint="Order applies everywhere — home, menu, header and ring"
+      />
+      <ul className="flex flex-col gap-2">
+        {order.map((key, index) => {
+          const section = SECTIONS[key]
+          return (
+            <li
+              key={key}
+              className="flex items-center gap-2 rounded-xl border border-border px-3 py-2"
+            >
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-accent-soft text-accent">
+                <section.Icon size={15} strokeWidth={1.7} />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium">{section.label}</p>
+                <p className="truncate text-[11px] text-muted">{section.blurb}</p>
+              </div>
+              <IconButton
+                aria-label={`Move ${section.label} up`}
+                disabled={index === 0}
+                onClick={() => move(index, -1)}
+              >
+                <ChevronUp size={15} />
+              </IconButton>
+              <IconButton
+                aria-label={`Move ${section.label} down`}
+                disabled={index === order.length - 1}
+                onClick={() => move(index, 1)}
+              >
+                <ChevronDown size={15} />
+              </IconButton>
+            </li>
+          )
+        })}
+      </ul>
+    </Card>
+  )
+}
 
 function AppearanceCard() {
   const { theme, accent, setTheme, setAccent } = useSettings()
@@ -116,6 +178,7 @@ function LifeAreasCard() {
   // keystroke would be one round trip per character.
   const [nameDraft, setNameDraft] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const rowRefs = useRef<Record<string, HTMLLIElement | null>>({})
 
   function beginEdit(area: LifeArea) {
     setEditingId(area.id)
@@ -131,6 +194,19 @@ function LifeAreasCard() {
     )
   }
 
+  /**
+   * Blur only ends editing when focus actually leaves the row.
+   *
+   * The colour swatches live inside the same row as the name input, so a plain
+   * blur handler closed the editor the instant a swatch was pressed — the
+   * picker unmounted before the click landed and the colour never changed.
+   */
+  function handleNameBlur(area: LifeArea, related: EventTarget | null) {
+    const row = rowRefs.current[area.id]
+    if (related instanceof Node && row?.contains(related)) return
+    commitName(area)
+  }
+
   function move(index: number, delta: number) {
     const next = [...lifeAreas]
     const target = index + delta
@@ -142,9 +218,12 @@ function LifeAreasCard() {
   async function add() {
     if (!newName.trim()) return
     try {
-      await createLifeArea({ name: newName.trim() })
+      // Drop straight into edit mode on the new row: picking a colour was
+      // otherwise a separate hunt after the fact.
+      const created = await createLifeArea({ name: newName.trim() })
       setNewName('')
       setError(null)
+      beginEdit(created)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not add the area.')
     }
@@ -161,7 +240,13 @@ function LifeAreasCard() {
 
       <ul className="mb-3 flex flex-col gap-2">
         {lifeAreas.map((area, index) => (
-          <li key={area.id} className="rounded-xl border border-border">
+          <li
+            key={area.id}
+            ref={(el) => {
+              rowRefs.current[area.id] = el
+            }}
+            className="rounded-xl border border-border"
+          >
             <div className="flex items-center gap-2 px-3 py-2">
               <span
                 className="h-3 w-3 shrink-0 rounded-full"
@@ -173,7 +258,7 @@ function LifeAreasCard() {
                   value={nameDraft}
                   autoFocus
                   onChange={(e) => setNameDraft(e.target.value)}
-                  onBlur={() => commitName(area)}
+                  onBlur={(e) => handleNameBlur(area, e.relatedTarget)}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') commitName(area)
                     if (e.key === 'Escape') setEditingId(null)
@@ -269,6 +354,7 @@ function ProjectsCard() {
   const [name, setName] = useState('')
   const [editingId, setEditingId] = useState<string | null>(null)
   const [nameDraft, setNameDraft] = useState('')
+  const rowRefs = useRef<Record<string, HTMLLIElement | null>>({})
 
   function beginEdit(project: Project) {
     setEditingId(project.id)
@@ -282,6 +368,13 @@ function ProjectsCard() {
     void updateProject(project.id, { name: trimmed }).catch(() => {})
   }
 
+  /** See LifeAreasCard — blur must not fire when focus moves to a swatch. */
+  function handleNameBlur(project: Project, related: EventTarget | null) {
+    const row = rowRefs.current[project.id]
+    if (related instanceof Node && row?.contains(related)) return
+    commitName(project)
+  }
+
   return (
     <Card>
       <SectionHeader title="Projects" hint="Optional grouping for tasks" />
@@ -289,7 +382,13 @@ function ProjectsCard() {
       {projects.length > 0 && (
         <ul className="mb-3 flex flex-col gap-2">
           {projects.map((project) => (
-            <li key={project.id} className="rounded-xl border border-border">
+            <li
+              key={project.id}
+              ref={(el) => {
+                rowRefs.current[project.id] = el
+              }}
+              className="rounded-xl border border-border"
+            >
               <div className="flex items-center gap-2 px-3 py-2">
                 <span
                   className="h-3 w-3 shrink-0 rounded-full"
@@ -301,7 +400,7 @@ function ProjectsCard() {
                     value={nameDraft}
                     autoFocus
                     onChange={(e) => setNameDraft(e.target.value)}
-                    onBlur={() => commitName(project)}
+                    onBlur={(e) => handleNameBlur(project, e.relatedTarget)}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') commitName(project)
                       if (e.key === 'Escape') setEditingId(null)
@@ -367,7 +466,10 @@ function ProjectsCard() {
           variant="primary"
           onClick={() => {
             if (!name.trim()) return
-            void createProject({ name: name.trim() }).then(() => setName(''))
+            void createProject({ name: name.trim() }).then((created) => {
+              setName('')
+              beginEdit(created)
+            })
           }}
         >
           <Plus size={14} />
@@ -390,7 +492,24 @@ function FocusDefaultsCard() {
         hint="Starting values — adjustable per session"
       />
 
-      <div className="grid grid-cols-2 gap-3">
+      <Field
+        label="Lock down during a session"
+        hint="Hides everything but the timer while focusing. Pausing restores it."
+      >
+        <Segmented<'on' | 'off'>
+          label="Lock down"
+          value={settings?.focus_lockdown ? 'on' : 'off'}
+          onChange={(v) =>
+            void updateSettings({ focus_lockdown: v === 'on' }).catch(() => {})
+          }
+          options={[
+            { value: 'off', label: 'Off' },
+            { value: 'on', label: 'On' },
+          ]}
+        />
+      </Field>
+
+      <div className="mt-3 grid grid-cols-2 gap-3">
         <Field label="Focus (minutes)">
           <Input
             type="number"

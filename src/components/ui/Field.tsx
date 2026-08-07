@@ -4,7 +4,7 @@ import type {
   SelectHTMLAttributes,
   TextareaHTMLAttributes,
 } from 'react'
-import { useId } from 'react'
+import { useCallback, useEffect, useId, useRef } from 'react'
 
 const CONTROL =
   'w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-text placeholder:text-muted/70 transition-colors focus:border-accent'
@@ -34,12 +34,57 @@ export function Input({
   return <input {...rest} className={`${CONTROL} ${className}`} />
 }
 
+/**
+ * Grows to fit its content instead of scrolling inside a fixed box.
+ *
+ * Notes are the one field people actually write paragraphs into, and a
+ * four-line window that hides what you already wrote is the fastest way to
+ * make someone stop writing. `rows` sets the minimum height; `maxRows` stops
+ * a long note from pushing the save buttons off-screen.
+ */
 export function Textarea({
   className = '',
+  rows = 3,
+  maxRows = 16,
+  onChange,
+  value,
   ...rest
-}: TextareaHTMLAttributes<HTMLTextAreaElement>) {
+}: TextareaHTMLAttributes<HTMLTextAreaElement> & { maxRows?: number }) {
+  const ref = useRef<HTMLTextAreaElement>(null)
+
+  const resize = useCallback(() => {
+    const el = ref.current
+    if (!el) return
+    const style = window.getComputedStyle(el)
+    const lineHeight = parseFloat(style.lineHeight) || 20
+    const vertical =
+      parseFloat(style.paddingTop) +
+      parseFloat(style.paddingBottom) +
+      parseFloat(style.borderTopWidth) +
+      parseFloat(style.borderBottomWidth)
+
+    // Collapse first, or scrollHeight only ever reports the current height.
+    el.style.height = 'auto'
+    const max = lineHeight * maxRows + vertical
+    el.style.height = `${Math.min(el.scrollHeight, max)}px`
+    el.style.overflowY = el.scrollHeight > max ? 'auto' : 'hidden'
+  }, [maxRows])
+
+  // Re-fit when the value changes from outside, e.g. a form being reset.
+  useEffect(resize, [resize, value])
+
   return (
-    <textarea {...rest} className={`${CONTROL} resize-y ${className}`} />
+    <textarea
+      {...rest}
+      ref={ref}
+      rows={rows}
+      value={value}
+      onChange={(e) => {
+        resize()
+        onChange?.(e)
+      }}
+      className={`${CONTROL} resize-none ${className}`}
+    />
   )
 }
 

@@ -54,7 +54,9 @@ export function HabitCheck({
 
   const value = log?.value ?? 0
   const target = habit.goal_target ?? 1
-  const step = target >= 20 ? 5 : 1
+  // The habit's own step, so "500 steps a tap" and "one glass a tap" can
+  // coexist instead of being guessed from the size of the target.
+  const step = Number(habit.step) || 1
 
   return (
     <div className="flex shrink-0 items-center gap-1.5">

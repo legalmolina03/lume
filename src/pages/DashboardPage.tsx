@@ -11,7 +11,7 @@ import { formatTimeRange, fromDateKey, todayKey } from '../lib/dates'
 import type { Task } from '../lib/types'
 import { Button } from '../components/ui/Button'
 import { Card, EmptyState, SectionHeader } from '../components/ui/Card'
-import { Input } from '../components/ui/Field'
+import { Input, Segmented } from '../components/ui/Field'
 import { HabitCheck } from '../components/habits/HabitCheck'
 import { TaskCard } from '../components/tasks/TaskCard'
 import { TaskEditor } from '../components/tasks/TaskEditor'
@@ -21,7 +21,7 @@ const TOP_TASK_COUNT = 6
 
 export function DashboardPage() {
   const { habits, habitLogs, tasks, events, lifeAreaById, loading } = useData()
-  const { settings } = useSettings()
+  const { settings, updateSettings } = useSettings()
   const { user } = useAuth()
   const navigate = useNavigate()
 
@@ -52,20 +52,32 @@ export function DashboardPage() {
    * Pinned tasks always come first, in the order the user set (Section 4);
    * everything else falls back to the soonest due date, undated last.
    */
+  const sortKey = settings?.dashboard_task_sort ?? 'due'
+
   const topTasks = useMemo(() => {
     const open = tasks.filter((t) => t.status === 'open')
     const pinned = open
       .filter((t) => t.pinned)
       .sort((a, b) => (a.pinned_order ?? 0) - (b.pinned_order ?? 0))
+
+    const byDue = (a: Task, b: Task) => {
+      if (!a.due_date) return 1
+      if (!b.due_date) return -1
+      return a.due_date < b.due_date ? -1 : a.due_date > b.due_date ? 1 : 0
+    }
+    const rank: Record<string, number> = { high: 0, medium: 1, low: 2 }
+
     const rest = open
       .filter((t) => !t.pinned)
-      .sort((a, b) => {
-        if (!a.due_date) return 1
-        if (!b.due_date) return -1
-        return a.due_date < b.due_date ? -1 : a.due_date > b.due_date ? 1 : 0
-      })
+      .sort((a, b) =>
+        sortKey === 'priority'
+          ? rank[a.priority] - rank[b.priority] || byDue(a, b)
+          : byDue(a, b),
+      )
+
+    // Pins always lead regardless of sort — that is what pinning means.
     return [...pinned, ...rest].slice(0, TOP_TASK_COUNT)
-  }, [tasks])
+  }, [tasks, sortKey])
 
   const todaysEvents = useMemo(() => {
     const day = fromDateKey(today)
@@ -175,19 +187,32 @@ export function DashboardPage() {
       <Card>
         <SectionHeader
           title="Top tasks"
-          hint="Pinned first, then soonest due"
+          hint={`Pinned first, then ${sortKey === 'priority' ? 'highest priority' : 'soonest due'}`}
           action={
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={() => {
-                setEditing(null)
-                setEditorOpen(true)
-              }}
-            >
-              <Plus size={14} />
-              New
-            </Button>
+            <div className="flex items-center gap-2">
+              <Segmented<'due' | 'priority'>
+                label="Sort top tasks"
+                value={sortKey}
+                onChange={(v) =>
+                  void updateSettings({ dashboard_task_sort: v }).catch(() => {})
+                }
+                options={[
+                  { value: 'due', label: 'Due' },
+                  { value: 'priority', label: 'Priority' },
+                ]}
+              />
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => {
+                  setEditing(null)
+                  setEditorOpen(true)
+                }}
+              >
+                <Plus size={14} />
+                New
+              </Button>
+            </div>
           }
         />
 

@@ -47,6 +47,11 @@ export type Habit = {
   life_area_id: string | null
   sort_order: number
   archived: boolean
+  notes: string | null
+  /** Per-habit reminder, overriding the account-wide evening nudge. */
+  reminder_time: string | null
+  /** How much one tap of + adds on a numeric habit. */
+  step: number
   created_at: string
 }
 
@@ -67,6 +72,12 @@ export type Task = {
   title: string
   description: string | null
   due_date: string | null
+  /** Optional refinement of due_date. Null means "sometime that day". */
+  due_time: string | null
+  /** Lead time for a push reminder. Null means no reminder. */
+  remind_minutes_before: number | null
+  /** Stamped once delivered, so a reminder is never sent twice. */
+  reminded_at: string | null
   priority: TaskPriority
   project_id: string | null
   life_area_id: string | null
@@ -137,9 +148,28 @@ export type UserSettings = {
   spotify_playlist_name: string | null
   spotify_autoplay: boolean
   spotify_autopause: boolean
+  /** Drives the dashboard, the hub and the nav — see SECTIONS. */
+  section_order: SectionKey[]
+  dashboard_task_sort: 'due' | 'priority'
+  calendar_overlay: CalendarOverlay
+  week_view_vertical: boolean
+  focus_lockdown: boolean
   created_at: string
   updated_at: string
 }
+
+/** The five navigable sections, in their default order. */
+export type SectionKey = 'habits' | 'tasks' | 'focus' | 'calendar' | 'activity'
+
+export const DEFAULT_SECTION_ORDER: SectionKey[] = [
+  'habits',
+  'tasks',
+  'focus',
+  'calendar',
+  'activity',
+]
+
+export type CalendarOverlay = 'events' | 'tasks' | 'both'
 
 export type SpotifyTokens = {
   user_id: string

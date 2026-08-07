@@ -54,12 +54,14 @@ interface DataValue {
   events: CalendarEvent[]
   focusSessions: FocusSession[]
 
-  createLifeArea: (input: Partial<LifeArea> & { name: string }) => Promise<void>
+  createLifeArea: (
+    input: Partial<LifeArea> & { name: string },
+  ) => Promise<LifeArea>
   updateLifeArea: (id: string, patch: LifeAreaPatch) => Promise<void>
   deleteLifeArea: (id: string) => Promise<void>
   reorderLifeAreas: (orderedIds: string[]) => Promise<void>
 
-  createProject: (input: { name: string; color?: string }) => Promise<void>
+  createProject: (input: { name: string; color?: string }) => Promise<Project>
   updateProject: (id: string, patch: ProjectPatch) => Promise<void>
   deleteProject: (id: string) => Promise<void>
 
@@ -104,6 +106,24 @@ const DataContext = createContext<DataValue | null>(null)
 
 /** The most a user may pin at once (Section 4). Mirrored by a DB trigger. */
 export const MAX_PINNED_TASKS = 5
+
+/** Kept in step with SWATCHES in components/ui/Field.tsx. */
+const PALETTE = [
+  '#22c55e',
+  '#3b82f6',
+  '#f59e0b',
+  '#ef4444',
+  '#8b5cf6',
+  '#ec4899',
+  '#14b8a6',
+  '#64748b',
+]
+
+/** First palette colour not already in use, so new items look distinct. */
+function nextSwatch(taken: string[]): string {
+  const used = new Set(taken.map((c) => c.toLowerCase()))
+  return PALETTE.find((c) => !used.has(c)) ?? PALETTE[taken.length % PALETTE.length]
+}
 
 export function DataProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth()
@@ -239,7 +259,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
           .insert({
             user_id: uid,
             name: input.name,
-            color: input.color ?? '#6366f1',
+            // Step through the palette rather than handing every new area the
+            // same indigo, which made them indistinguishable until edited.
+            color: input.color ?? nextSwatch(lifeAreas.map((a) => a.color)),
             icon: input.icon ?? null,
             sort_order: maxOrder + 1,
           })
@@ -249,6 +271,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         setLifeAreas((prev) =>
           [...prev, data].sort((a, b) => a.sort_order - b.sort_order),
         )
+        return data
       },
 
       async updateLifeArea(id, patch) {
@@ -302,12 +325,13 @@ export function DataProvider({ children }: { children: ReactNode }) {
           .insert({
             user_id: uid,
             name: input.name,
-            color: input.color ?? '#64748b',
+            color: input.color ?? nextSwatch(projects.map((p) => p.color)),
           })
           .select()
           .single()
         if (err) throw err
         setProjects((prev) => [...prev, data])
+        return data
       },
 
       async updateProject(id, patch) {

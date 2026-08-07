@@ -1,5 +1,5 @@
-import { Check, Pin, PinOff } from 'lucide-react'
-import { isBefore, startOfDay } from 'date-fns'
+import { Bell, Check, Pin, PinOff } from 'lucide-react'
+import { format, isBefore, parse, startOfDay } from 'date-fns'
 import type { Task } from '../../lib/types'
 import { fromDateKey, relativeDayLabel } from '../../lib/dates'
 import { useData } from '../../context/DataContext'
@@ -9,6 +9,16 @@ import { IconButton } from '../ui/Button'
 export function isOverdue(task: Task, today = new Date()): boolean {
   if (task.status === 'done' || !task.due_date) return false
   return isBefore(fromDateKey(task.due_date), startOfDay(today))
+}
+
+/** `14:30:00` from Postgres rendered as `2:30 PM`. */
+export function formatClockTime(time: string): string {
+  return format(parse(time.slice(0, 5), 'HH:mm', new Date()), 'h:mm a')
+}
+
+/** First non-empty line, trimmed — a preview, not the whole note. */
+export function firstLine(text: string): string {
+  return text.split('\n').find((line) => line.trim())?.trim() ?? ''
 }
 
 /**
@@ -71,10 +81,28 @@ export function TaskCard({
         >
           {task.title}
         </p>
+        {/* First line of the notes: enough to recognise a task without
+            opening it, and nothing more. */}
+        {task.description && (
+          <p className="mt-0.5 truncate text-[11px] text-muted/90">
+            {firstLine(task.description)}
+          </p>
+        )}
+
         <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted">
           {task.due_date && (
             <span className={overdue ? 'font-medium text-danger' : ''}>
               {relativeDayLabel(fromDateKey(task.due_date))}
+              {task.due_time && ` · ${formatClockTime(task.due_time)}`}
+            </span>
+          )}
+          {task.remind_minutes_before !== null && (
+            <span
+              className="inline-flex items-center gap-1"
+              title="Reminder set"
+              aria-label="Reminder set"
+            >
+              <Bell size={10} />
             </span>
           )}
           {project && <span>{project.name}</span>}
