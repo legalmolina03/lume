@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { format } from 'date-fns'
+import { format, isSameDay } from 'date-fns'
 import { Trash2 } from 'lucide-react'
 import type { CalendarEvent, RecurrenceRule } from '../../lib/types'
 import { useData } from '../../context/DataContext'
@@ -32,10 +32,36 @@ interface Draft {
   until: string
 }
 
+/**
+ * A sensible clock time for a brand-new event on `day`.
+ *
+ * The calendar hands over a date at midnight, and using that verbatim meant
+ * every new event defaulted to 00:00 — a time nobody schedules anything for,
+ * so it had to be corrected by hand every single time. Instead: the next whole
+ * hour when the event is for today, or 9am on any other day.
+ */
+function defaultStartFor(day: Date): Date {
+  const now = new Date()
+  const start = new Date(day)
+
+  if (isSameDay(day, now)) {
+    start.setHours(now.getHours() + 1, 0, 0, 0)
+    // Rolling past midnight would land the event on the wrong day.
+    if (start.getDate() !== day.getDate()) start.setHours(23, 0, 0, 0)
+  } else {
+    start.setHours(9, 0, 0, 0)
+  }
+
+  return start
+}
+
 /** `datetime-local`-friendly split of a stored timestamp. */
 function draftFrom(event: CalendarEvent | null, fallbackDate: Date): Draft {
-  const start = event ? new Date(event.start_datetime) : fallbackDate
-  const end = event ? new Date(event.end_datetime) : new Date(fallbackDate.getTime() + 3_600_000)
+  const fallbackStart = defaultStartFor(fallbackDate)
+  const start = event ? new Date(event.start_datetime) : fallbackStart
+  const end = event
+    ? new Date(event.end_datetime)
+    : new Date(fallbackStart.getTime() + 3_600_000)
   const rule = event?.recurrence_rule ?? null
 
   return {
